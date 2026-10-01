@@ -52,7 +52,7 @@ export function renderMarkdown(run) {
   const pr = changeset?.pullRequest;
   push(table([
     ['Repository', changeset?.repo?.cloneUrl ?? meta.repoUrl],
-    ['Change', changeset?.kind === 'pull-request' ? `Pull request #${pr?.number ?? '?'}${pr?.title ? ` - ${pr.title}` : ''}` : `Commit range ${changeset?.range?.from}..${changeset?.range?.to}`],
+    ['Change', changeset?.kind === 'pull-request' ? `Pull request #${pr?.number ?? '?'}${pr?.title ? ` - ${pr.title}` : ''}` : changeset?.kind === 'working-copy' ? `Working copy @ ${changeset?.head?.sha?.slice(0, 12) ?? '?'}` : `Commit range ${changeset?.range?.from}..${changeset?.range?.to}`],
     ['Merge base', changeset?.mergeBase?.slice(0, 12) ?? '-'],
     ['Base revision', `${changeset?.base?.ref ?? '?'} @ ${changeset?.base?.sha?.slice(0, 12) ?? '?'}`],
     ['Head revision', `${changeset?.head?.ref ?? '?'} @ ${changeset?.head?.sha?.slice(0, 12) ?? '?'}`],

@@ -9,7 +9,8 @@ Version: see `process/VERSION`.
 
 ## Step 0 — Establish the subject
 
-The human gives a repository URL. **Do not start cloning yet.**
+The human gives a repository URL, or a path to a checkout already on disk. **Do not
+start cloning yet.**
 
 Ask for the change, using `ask_user_question`, offering both forms:
 
@@ -62,6 +63,7 @@ as a defect in the repository under test.
 ```bash
 node harness/bin/ebb.mjs acquire --repo <url> --pr <n>
 node harness/bin/ebb.mjs acquire --repo <url> --range <A..B>
+node harness/bin/ebb.mjs acquire --repo-dir <path> --range <A..B>
 ```
 
 Show the human, before spending build time:
@@ -141,6 +143,13 @@ regression.
 
 ```bash
 node harness/bin/ebb.mjs run --repo <url> --pr <n> [--scenario <file>] [--adapter <id>]
+```
+
+A repository already on disk is tested with `--repo-dir <path>` instead of `--repo`:
+
+```bash
+node harness/bin/ebb.mjs run --repo-dir <path> --range <A..B>   # differential, local snapshot
+node harness/bin/ebb.mjs run --repo-dir <path>                  # working tree, single-sided
 ```
 
 The pipeline is `acquire → prepare → launch → probe → compare → report`. Expect

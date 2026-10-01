@@ -20,7 +20,7 @@ import { runProbes } from './probes.mjs';
 import { writeReports } from './report.mjs';
 import {
   HARNESS_DIR, ROOT, RUNS_DIR, WORK_DIR,
-  buildEnv, ensureDir, loadConfig, log, readJson, readText, timestampId, writeJson, writeText, shortHash,
+  buildEnv, ensureDir, gitArgs, loadConfig, log, readJson, readText, runCapture, timestampId, writeJson, writeText, shortHash,
 } from './util.mjs';
 
 export const HARNESS_VERSION = '0.3.0';
@@ -247,6 +247,48 @@ async function exerciseSide({ side, runId, runDir, workDir, config, scenario, ex
   return side;
 }
 
+/**
+ * Describe a local checkout tested as-is (no PR or commit range). Reads the repo in
+ * place - never writes - so the user's working tree is untouched. Reports HEAD plus
+ * any uncommitted changes so the report still says what was actually tested.
+ */
+async function buildWorkingCopyChangeset(repoDir, config) {
+  const git = (args) => runCapture('git', gitArgs(config, args), { cwd: repoDir, env: buildEnv(config) });
+  const name = basename(repoDir);
+
+  let headSha = 'unknown';
+  try {
+    headSha = await git(['rev-parse', 'HEAD']);
+  } catch {}
+
+  const files = [];
+  let additions = 0;
+  let deletions = 0;
+  try {
+    const numstat = await git(['diff', '--numstat', 'HEAD']);
+    for (const line of numstat.split('\n')) {
+      if (!line.trim()) continue;
+      const [add, del, ...rest] = line.split('\t');
+      const path = rest.join('\t');
+      const addNum = add === '-' ? 0 : Number(add);
+      const delNum = del === '-' ? 0 : Number(del);
+      files.push({ status: 'M', statusCode: 'M', path, previousPath: null, additions: addNum, deletions: delNum, binary: add === '-' });
+      additions += addNum;
+      deletions += delNum;
+    }
+  } catch {}
+
+  return {
+    kind: 'working-copy',
+    repo: { cloneUrl: repoDir, owner: 'local', name, local: true },
+    base: { ref: 'HEAD', sha: headSha },
+    head: { ref: 'HEAD', sha: headSha },
+    mergeBase: headSha,
+    files,
+    totals: { files: files.length, additions, deletions, commits: 0 },
+  };
+}
+
 /** Load a scenario JSON file, if given. */
 export async function loadScenario(pathOrNull) {
   if (!pathOrNull) return null;
@@ -299,14 +341,37 @@ export async function runPipeline(options) {
   let changeset = null;
   let triage = null;
   let repoDir = null;
+  let trees = null;
   let base = null;
   let head = null;
 
   try {
     // ---- acquire ---------------------------------------------------------
     if (options.repoDir) {
-      repoDir = options.repoDir;
-      log.info(`using existing checkout ${repoDir}`);
+      if (options.pr !== null || options.range) {
+        // A local checkout plus an explicit change: snapshot it and run the full
+        // differential pipeline exactly as a URL would, but with no network clone
+        // and no touching of the user's repository.
+        const acquired = await acquire({
+          localRepo: options.repoDir,
+          pr: options.pr,
+          range: options.range,
+          workDir,
+          runDir,
+          config,
+          force: options.forceClone === true,
+        });
+        repoDir = acquired.repoDir;
+        changeset = acquired.changeset;
+        trees = acquired;
+      } else {
+        // A local checkout with no change set: a single-sided test of the working
+        // tree as it is on disk, including uncommitted changes. There is no `base` to
+        // compare against, so the report is absolute, not differential.
+        repoDir = options.repoDir;
+        log.info(`using existing checkout ${repoDir} (working tree, single-sided)`);
+        changeset = await buildWorkingCopyChangeset(repoDir, config);
+      }
     } else {
       const acquired = await acquire({
         repoUrl: options.repoUrl,
@@ -319,20 +384,7 @@ export async function runPipeline(options) {
       });
       repoDir = acquired.repoDir;
       changeset = acquired.changeset;
-      var trees = acquired;
-    }
-
-    if (!changeset) {
-      // Local-checkout mode has no change set; build a trivial one so the report renders.
-      changeset = {
-        kind: 'working-copy',
-        repo: { cloneUrl: repoDir, owner: 'local', name: repoDir.split(/[\\/]/).pop() },
-        base: { ref: 'HEAD', sha: 'unknown' },
-        head: { ref: 'HEAD', sha: 'unknown' },
-        mergeBase: 'unknown',
-        files: [],
-        totals: { files: 0, additions: 0, deletions: 0, commits: 0 },
-      };
+      trees = acquired;
     }
 
     meta.reproduce = options.reproduceCommand ?? buildReproduceCommand(options);

@@ -6,6 +6,27 @@ Versioning: **patch** = knowledge/docs, **minor** = harness behaviour,
 
 ---
 
+## 0.8.0 — test a repository already on disk
+
+Until now the harness could only clone a remote URL. A repository that already sits on
+the tester's disk — a local checkout, a branch that only exists locally, or uncommitted
+work — could not be tested. `--repo-dir <path>` now covers all three:
+
+- `ebb run --repo-dir <path> --range A..B` (or `--pr N`) snapshots the checkout into
+  `work/repos/local__<name>` and runs the full differential pipeline exactly as a URL
+  would: two worktrees, base vs head, comparison, report. The user's repository is never
+  touched — nothing is fetched, and the snapshot is a `--no-hardlinks` clone.
+- `ebb run --repo-dir <path>` (no range) tests the working tree as it is on disk,
+  including uncommitted changes, as a single-sided run. The report now states the real
+  `HEAD` sha and the uncommitted diff instead of `unknown`.
+- `ebb acquire --repo-dir <path> --range A..B` previews the change set before any build,
+  for local repositories too.
+
+Refs that name a non-default branch are resolved through `origin/<branch>`, matching
+how a clone lays out a local checkout's branches.
+
+---
+
 ## 0.7.2 — deliver every report in Chinese and English
 
 The harness writes one report, `runs/<runId>/report.md`, in English. A human on either

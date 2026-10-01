@@ -14,6 +14,7 @@ They will say something like:
 
 > "测试这个仓库：https://github.com/owner/name"
 > "Test this repo: https://github.com/owner/name"
+> "Test this repo on disk: /path/to/checkout"
 
 Your job from that moment is fixed and non-negotiable in order:
 
@@ -81,6 +82,11 @@ node harness/bin/ebb.mjs acquire --repo <url> --range v1.2.0..v1.3.0
 # 3. Run it. Without --scenario this is only a smoke test.
 node harness/bin/ebb.mjs run --repo <url> --pr 85
 node harness/bin/ebb.mjs run --repo <url> --range v1.2.0..v1.3.0
+
+# A repository already on disk (no clone): give its path instead of a URL.
+node harness/bin/ebb.mjs acquire --repo-dir <path> --range v1.2.0..v1.3.0
+node harness/bin/ebb.mjs run     --repo-dir <path> --range v1.2.0..v1.3.0   # differential
+node harness/bin/ebb.mjs run     --repo-dir <path>                           # working tree, single-sided
 
 # 4. Author a test script for THIS change (method: process/knowledge/scenario-authoring.md).
 node harness/bin/ebb.mjs scenario <runId>              # scaffold aimed at the diff

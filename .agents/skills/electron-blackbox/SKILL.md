@@ -1,7 +1,7 @@
 ---
 name: electron-blackbox
 description: Black-box test an Electron application for a pull request or commit range. Use when asked to test, verify, review or regression-check an Electron/desktop app change, when given a repository URL plus a PR number or commit range, or when asked whether a change broke the app at runtime. Builds both revisions, launches the real Electron binary, observes it over the DevTools Protocol, and writes a verdict report.
-whenToUse: The user gives a repository URL for an Electron app and asks to test a PR or a range of commits; or asks whether a change broke runtime behaviour, startup, windows, UI, IPC or packaging.
+whenToUse: The user gives a repository URL or a path to a local checkout of an Electron app and asks to test a PR or a range of commits; or asks whether a change broke runtime behaviour, startup, windows, UI, IPC or packaging.
 ---
 
 # Electron black-box test operator
@@ -37,8 +37,8 @@ All paths below are relative to this directory (the one containing `AGENTS.md`).
 
 3. **Resolve the change cheaply, then show it.**
    `node harness/bin/ebb.mjs acquire --repo <url> --pr <n>`
-   (or `--range <A..B>`). Confirm the base branch and diff size before spending
-   minutes on builds.
+   (or `--range <A..B>`, or `--repo-dir <path>` for a checkout already on disk).
+   Confirm the base branch and diff size before spending minutes on builds.
 
 4. **Write a test script for this change — do not skip this.**
    The built-in probes only prove the app still starts and renders. Testing what the
@@ -58,6 +58,8 @@ All paths below are relative to this directory (the one containing `AGENTS.md`).
 
 5. **Run it differentially.**
    `node harness/bin/ebb.mjs run --repo <url> --pr <n> --scenario projects/<owner>__<repo>/scenarios/<file>.json`
+   Use `--repo-dir <path>` instead of `--repo <url>` for a checkout already on disk
+   (`--range A..B` for a differential run; no range tests the working tree single-sided).
    Without `--scenario` this is a smoke test, and the report will say so.
 
 6. **Report** `runs/<runId>/report.md`, leading with the verdict. `INCONCLUSIVE` is

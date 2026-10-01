@@ -104,7 +104,10 @@ RUN OPTIONS
   --repo <url>               Repository URL or owner/name (required unless --repo-dir).
   --pr <number>              Test a pull request against its base branch.
   --range <A..B>             Test an explicit commit range (use A...B for merge-base).
-  --repo-dir <path>          Use an existing local checkout instead of cloning.
+  --repo-dir <path>          Test a repository already on disk instead of cloning a URL.
+                             With --range (or --pr) it snapshots the repo locally and
+                             runs the full differential test; with neither it tests the
+                             working tree as-is (single-sided, includes uncommitted work).
   --adapter <id>             Force a launch adapter (see project.json adapters).
   --only <both|base|head>    Run one side only (default: both).
   --scenario <file>          Extra interaction scenario (JSON with a "steps" array).
@@ -140,6 +143,8 @@ EXAMPLES
   node ./bin/ebb.mjs scenario <runId> --out harness/scenarios/pr85.json
   node ./bin/ebb.mjs play <runId> --scenario harness/scenarios/pr85.json
   node ./bin/ebb.mjs run --repo owner/name --range v1.2.0..v1.3.0
+  node ./bin/ebb.mjs run --repo-dir ../some-app --range v1.2.0..v1.3.0
+  node ./bin/ebb.mjs run --repo-dir ../some-app
 `;
 
 // ---------------------------------------------------------------------------
@@ -223,11 +228,16 @@ async function commandAcquire(flags) {
   const config = await loadConfig({});
   const { WORK_DIR, ensureDir, timestampId, shortHash, writeText } = await import('../src/util.mjs');
 
-  const runId = `acquire-${timestampId()}-${shortHash(flags.repo ?? '', String(flags.pr ?? flags.range ?? ''))}`;
+  if (!flags.repo && !flags['repo-dir']) {
+    throw new Error('--repo <url> is required (or --repo-dir <path>)');
+  }
+
+  const runId = `acquire-${timestampId()}-${shortHash(flags.repo ?? flags['repo-dir'] ?? '', String(flags.pr ?? flags.range ?? ''))}`;
   const runDir = await ensureDir(join(RUNS_DIR, runId));
 
   const acquired = await acquire({
-    repoUrl: flags.repo,
+    repoUrl: flags.repo ?? null,
+    localRepo: flags['repo-dir'] ? resolve(flags['repo-dir']) : null,
     pr: flags.pr !== undefined ? Number(flags.pr) : null,
     range: flags.range ?? null,
     workDir: await ensureDir(WORK_DIR),

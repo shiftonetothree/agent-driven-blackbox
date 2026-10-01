@@ -3,7 +3,7 @@
  * (a pull request or an explicit commit range) and materialise two isolated
  * worktrees - `base` (before) and `head` (after) - for differential testing.
  */
-import { join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { buildEnv, ensureDir, gitArgs, listDir, log, pathExists, readJson, removePath, run, runCapture, writeJson } from './util.mjs';
 
 /** Accepts https://, ssh://, git@host:owner/name.git or the `owner/name` shorthand. */
@@ -27,6 +27,18 @@ export function parseRepoUrl(input) {
     return { host, owner, name, cloneUrl: `https://${host}/${owner}/${name}.git` };
   }
   throw new Error(`cannot parse repository URL: ${input}`);
+}
+
+/**
+ * Describe a repository already on disk so it flows through the same pipeline as a
+ * URL. The `local` flag tells `cloneRepo` to snapshot the on-disk repository instead
+ * of fetching from a remote, so the user's checkout is never touched and no network
+ * access is required to resolve a commit range.
+ */
+export function localRepoDescriptor(path) {
+  const abs = resolve(String(path).trim());
+  const name = basename(abs) || 'local-repo';
+  return { host: 'local', owner: 'local', name, cloneUrl: abs, local: true };
 }
 
 /** GitHub REST lookup for a PR. Returns null when the API is unreachable. */
@@ -86,16 +98,27 @@ export async function cloneRepo({ repo, workDir, config, force = false }) {
   const repoDir = join(workDir, 'repos', `${repo.owner}__${repo.name}`);
   if (force) await removePath(repoDir);
 
+  const isLocal = repo.local === true;
+
   if (await pathExists(join(repoDir, '.git'))) {
-    log.info(`reusing clone at ${repoDir}`);
-    const fetchResult = await git(config, repoDir, ['fetch', '--all', '--tags', '--prune'], { timeoutMs: 900000 });
-    if (fetchResult.code !== 0) log.warn(`git fetch failed (exit ${fetchResult.code}); continuing with the existing clone`);
-    return repoDir;
+    // A local checkout is the source of truth: re-snapshot it every run so the cache
+    // can never drift from what is on disk. A remote clone is refreshed by fetch.
+    if (isLocal) {
+      await removePath(repoDir);
+    } else {
+      log.info(`reusing clone at ${repoDir}`);
+      const fetchResult = await git(config, repoDir, ['fetch', '--all', '--tags', '--prune'], { timeoutMs: 900000 });
+      if (fetchResult.code !== 0) log.warn(`git fetch failed (exit ${fetchResult.code}); continuing with the existing clone`);
+      return repoDir;
+    }
   }
 
   await ensureDir(join(workDir, 'repos'));
-  log.step(`cloning ${repo.cloneUrl}`);
-  const result = await git(config, workDir, ['clone', repo.cloneUrl, repoDir], {
+  log.step(isLocal ? `snapshotting local repository ${repo.cloneUrl}` : `cloning ${repo.cloneUrl}`);
+  const cloneArgs = isLocal
+    ? ['clone', '--no-hardlinks', '--', repo.cloneUrl, repoDir]
+    : ['clone', repo.cloneUrl, repoDir];
+  const result = await git(config, workDir, cloneArgs, {
     timeoutMs: 1800000,
     logFile: join(workDir, 'logs', 'clone.log'),
   });
@@ -108,6 +131,7 @@ export async function cloneRepo({ repo, workDir, config, force = false }) {
 /** Resolve the change set for a PR or commit range and write `changeset.json`. */
 export async function resolveChangeset({ repoDir, repo, pr, range, config, runDir }) {
   const changeset = { repo, generatedAt: new Date().toISOString() };
+  const isLocal = repo.local === true;
 
   if (pr !== undefined && pr !== null) {
     log.step(`resolving pull request #${pr}`);
@@ -136,11 +160,14 @@ export async function resolveChangeset({ repoDir, repo, pr, range, config, runDi
   } else {
     log.step(`resolving commit range ${range}`);
     const parsed = parseRange(range);
-    await git(config, repoDir, ['fetch', '--all', '--tags', '--prune'], { timeoutMs: 900000 });
-    const headSha = await revParse(config, repoDir, parsed.to);
+    // A local snapshot already contains every ref from the source checkout, so there
+    // is nothing to fetch; refs that name a non-default branch live under `origin/`.
+    if (!isLocal) await git(config, repoDir, ['fetch', '--all', '--tags', '--prune'], { timeoutMs: 900000 });
+    const headSha = await resolveRev(config, repoDir, parsed.to, isLocal);
+    const fromSha = await resolveRev(config, repoDir, parsed.from, isLocal);
     const baseSha = parsed.exclusive
-      ? await gitOut(config, repoDir, ['merge-base', parsed.from, parsed.to])
-      : await revParse(config, repoDir, parsed.from);
+      ? await gitOut(config, repoDir, ['merge-base', fromSha, headSha])
+      : fromSha;
     changeset.kind = 'commit-range';
     changeset.range = parsed;
     changeset.base = { ref: parsed.from, sha: baseSha };
@@ -216,6 +243,20 @@ export async function revParse(config, repoDir, rev) {
   return await gitOut(config, repoDir, ['rev-parse', rev]);
 }
 
+/**
+ * Resolve a revision to a SHA. A local clone keeps the source's non-default branches
+ * under `origin/<branch>`, so when the bare name fails there, try the `origin/` form.
+ * Tags, SHAs and the default branch resolve on the first attempt either way.
+ */
+async function resolveRev(config, repoDir, rev, isLocal) {
+  if (!isLocal) return revParse(config, repoDir, rev);
+  try {
+    return await revParse(config, repoDir, rev);
+  } catch {
+    return await revParse(config, repoDir, `origin/${rev}`);
+  }
+}
+
 export async function defaultBranch(config, repoDir) {
   try {
     return await gitOut(config, repoDir, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
@@ -259,9 +300,9 @@ export async function createWorktrees({ repoDir, runDir, changeset, config }) {
 }
 
 /** Full acquisition step. */
-export async function acquire({ repoUrl, pr, range, workDir, runDir, config, force = false }) {
+export async function acquire({ repoUrl, localRepo, pr, range, workDir, runDir, config, force = false }) {
   if ((pr === undefined || pr === null) && !range) throw new Error('either a pull request number or a commit range is required');
-  const repo = parseRepoUrl(repoUrl);
+  const repo = localRepo ? localRepoDescriptor(localRepo) : parseRepoUrl(repoUrl);
   await ensureDir(runDir);
 
   const repoDir = await cloneRepo({ repo, workDir, config, force });
