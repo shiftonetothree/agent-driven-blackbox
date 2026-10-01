@@ -1,0 +1,10 @@
+{
+  "$comment": "Generic smoke scenario for any Electron app. It asserts only what every Electron app must satisfy: a document that settles, no uncaught errors, and a rendered surface. Copy it and add app-specific steps as you learn the UI.",
+  "steps": [
+    { "action": "wait", "ms": 1500 },
+    { "action": "assertSelector", "selector": "body", "severity": "blocker" },
+    { "action": "eval", "expression": "document.readyState" },
+    { "action": "assertNoConsoleErrors", "severity": "major" },
+    { "action": "screenshot", "name": "settled" }
+  ]
+}

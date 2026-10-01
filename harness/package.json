@@ -1,0 +1,23 @@
+﻿{
+  "name": "ebb",
+  "version": "0.7.0",
+  "private": true,
+  "type": "module",
+  "description": "Electron Black-Box (EBB) test harness - Playwright-driven, with a dependency-free DevTools Protocol fallback",
+  "bin": {
+    "ebb": "./bin/ebb.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "doctor": "node ./bin/ebb.mjs doctor",
+    "selfcheck": "node ./bin/ebb.mjs selfcheck"
+  },
+  "dependencies": {
+    "playwright-core": "^1.63.0"
+  },
+  "comments": {
+    "dependency-policy": "playwright-core is the only dependency on purpose. It must be `playwright-core` and not `playwright`, because the harness drives the application's own Electron binary and therefore never needs bundled browsers. Every part of the harness except the Playwright driver keeps working when node_modules is absent, so the process can still run before any install has succeeded."
+  }
+}

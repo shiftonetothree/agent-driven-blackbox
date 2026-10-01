@@ -1,0 +1,7 @@
+{
+  "name": "ebb-smoke-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal Electron app used by `ebb doctor` to probe whether this host can launch Electron at all.",
+  "main": "main.js"
+}

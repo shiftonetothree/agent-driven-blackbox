@@ -1,0 +1,26 @@
+# Test artefacts produced by running the process. Nothing here is source.
+runs/
+work/
+.cache/
+_probe/
+
+# Per-repository test material. This repo is a generic framework: nothing that names
+# one application is committed. projects/README.md (the convention doc) stays tracked.
+projects/*
+!projects/README.md
+
+# Runtime handshake written by the doctor's smoke launch.
+harness/fixtures/smoke-app/handshake.json
+harness/fixtures/*.png
+
+# Local overrides
+harness/ebb.config.json
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS / editor
+Thumbs.db
+.DS_Store
+*.swp
