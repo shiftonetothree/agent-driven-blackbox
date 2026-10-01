@@ -230,6 +230,19 @@ Lead with the verdict in one line, then:
 Never overstate coverage. If a probe was skipped, say so. If only one revision ran,
 say so. If the packaged artifact was not exercised, say so.
 
+### Deliver the report in both languages
+
+The harness writes the English report `runs/<runId>/report.md`. After reading it, write
+a Chinese translation to `runs/<runId>/report.zh-CN.md` and deliver both. It is a full
+rendering, not a summary:
+
+- Translate every heading, label, table header and prose paragraph into Chinese.
+- Keep verbatim: the verdict token (`REGRESSION`, `NO_REGRESSION`, …), probe and status
+  codes, side labels (`base`/`head`), metric names, file paths, command lines, URLs,
+  engine versions and any machine identifier. These stay identical so the two files
+  cross-reference cleanly and the machine report (`report.json`) is not contradicted.
+- Preserve the numbers, tables, code blocks and section structure exactly.
+
 ---
 
 ## Step 7 — Evolve the process

@@ -38,6 +38,8 @@ Your job from that moment is fixed and non-negotiable in order:
 6. **Deliver a report** (`runs/<runId>/report.md`) and state the verdict in one line.
    If you did not write a script, say so plainly; the report will carry a coverage
    caveat and you must not present it as a clean bill of health.
+   Then **translate it into Chinese**: write `runs/<runId>/report.zh-CN.md`, a full
+   Chinese rendering of the same report, and deliver both files.
 
 7. **Record what you learned** (§5) so the next run is better than this one.
 
@@ -93,8 +95,13 @@ node harness/bin/ebb.mjs runs                  # history
 node harness/bin/ebb.mjs selfcheck             # validate the harness itself
 ```
 
-Reports land in `runs/<runId>/report.md` (human) and `runs/<runId>/report.json`
-(machine). Exit code is `1` for `REGRESSION`/`FAIL`, and for a failing `ebb play`.
+Reports land in `runs/<runId>/report.md` (human, English) and
+`runs/<runId>/report.json` (machine). After a run, also write
+`runs/<runId>/report.zh-CN.md` — a Chinese translation of `report.md` — so every
+result is delivered in both languages. Translate headings, labels, table headers and
+prose; keep verdict tokens, status codes, side labels (`base`/`head`), metric names,
+paths, commands, URLs and other identifiers verbatim. Exit code is `1` for
+`REGRESSION`/`FAIL`, and for a failing `ebb play`.
 
 ---
 

@@ -62,7 +62,9 @@ All paths below are relative to this directory (the one containing `AGENTS.md`).
 
 6. **Report** `runs/<runId>/report.md`, leading with the verdict. `INCONCLUSIVE` is
    not a pass — say so plainly and attach the launch evidence. If no script was
-   written, say that too; the report carries a coverage caveat.
+   written, say that too; the report carries a coverage caveat. Then write
+   `runs/<runId>/report.zh-CN.md`, a Chinese translation of the same report, and
+   deliver both.
 
 7. **Evolve the process.** Record anything new (environment quirk, failure mode,
    technique, authoring lesson) under `process/knowledge/`, bump `process/VERSION`,

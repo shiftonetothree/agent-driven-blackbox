@@ -219,3 +219,30 @@ The absence of an interactive desktop shell does **not** prevent Electron from
 rendering: screenshots captured over CDP during `ebb doctor --smoke` are real
 (8865 bytes for the 1024×768 smoke window, with DOM text read back as
 `ebb smoke ok`).
+
+---
+
+## 5. Finding an Electron binary for `doctor --smoke`
+
+`ebb doctor --smoke` reports `electron-launch: no Electron binary found` unless it can
+locate one on its own. `findAnyElectron()` only searches
+`work/repos/<owner>/<repo>/node_modules/electron/dist/electron.exe`, but the cached clone
+never has `node_modules` — installs happen inside each run's disposable worktree — so on
+this host the auto-search returns `null` and the smoke check needs a binary passed in.
+
+Binaries live under every completed run's worktree:
+
+```
+runs/<runId>/trees/{base,head}/node_modules/electron/dist/electron.exe
+```
+
+and in the pre-harness probe checkout
+`_probe/target/launcher/node_modules/electron/dist/electron.exe`. Pass any of them
+explicitly:
+
+```bash
+node harness/bin/ebb.mjs doctor --smoke --electron "F:/agnet_black_box_test/runs/<runId>/trees/head/node_modules/electron/dist/electron.exe"
+```
+
+The `.cache/electron/` entries are only the downloaded `.zip` (v36.5.0 and v44.4.3),
+not an extracted `electron.exe`, so they cannot be used directly.

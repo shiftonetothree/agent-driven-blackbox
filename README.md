@@ -12,7 +12,7 @@ node harness/bin/ebb.mjs acquire --repo <url> --pr 85          # what exactly ch
 node harness/bin/ebb.mjs run     --repo <url> --pr 85          # test it, write the report
 ```
 
-Report: `runs/<runId>/report.md`
+Report: `runs/<runId>/report.md` (English) + `runs/<runId>/report.zh-CN.md` (Chinese)
 
 ---
 
@@ -119,6 +119,8 @@ node harness/bin/ebb.mjs run     --repo <url> --pr 85
   one-line file that references `AGENTS.md`.
 - Every command is non-interactive, writes `runs/<runId>/report.json` for machines
   and `report.md` for humans, and exits `1` on `REGRESSION`/`FAIL` so CI can gate.
+  The agent also writes `report.zh-CN.md`, a Chinese translation of `report.md`, so
+  each result is delivered in both English and Chinese.
 
 ## Runtime
 
@@ -158,7 +160,7 @@ observed result is cached in `work/capabilities.json`.
 ```
 acquire ──► prepare ──► launch ──► probe ──► compare ──► report
    │           │          │         │         │           │
-   │           │          │         │         │           └─ report.md + report.json
+   │           │          │         │         │           └─ report.md + report.zh-CN.md + report.json
    │           │          │         │         └─ base vs head, per probe
    │           │          │         └─ windows, console, visual, network,
    │           │          │            main-process, stability, scenario

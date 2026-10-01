@@ -6,6 +6,37 @@ Versioning: **patch** = knowledge/docs, **minor** = harness behaviour,
 
 ---
 
+## 0.7.2 — deliver every report in Chinese and English
+
+The harness writes one report, `runs/<runId>/report.md`, in English. A human on either
+side of the language boundary should not have to ask for a translation, so the process
+now produces both. Rather than i18n the harness itself — which would move every
+heading, label and prose string into a catalog and still leave the machine-generated
+findings and launch notes in English — the requirement is written into the operator's
+instructions (`AGENTS.md`, the skill, `process/PROCESS.md`): after reading `report.md`,
+write `runs/<runId>/report.zh-CN.md`, a full Chinese rendering, and deliver both.
+
+The translation is a full rendering, not a summary: headings, labels, table headers and
+prose are translated, while verdict tokens, status codes, side labels (`base`/`head`),
+metric names, file paths, command lines, URLs and other identifiers stay verbatim so
+the two files cross-reference cleanly and neither contradicts `report.json`.
+
+---
+
+## 0.7.1 — record where `doctor --smoke` finds an Electron binary
+
+Re-testing PR #85 from a cold session surfaced a friction point that cost real time:
+`ebb doctor --smoke` reports `electron-launch: no Electron binary found` on this host,
+because `findAnyElectron()` only searches the cached clone's `node_modules/electron`,
+which never exists here — installs happen in each run's disposable worktree. The smoke
+check therefore always needs `--electron <path>`. Documented where binaries actually
+live (`runs/*/trees/{base,head}/node_modules/electron/dist/`, or the pre-harness probe
+checkout `_probe/target/launcher/…`), and that `.cache/electron/` holds only zips. Also
+recorded in the app NOTES that the sync's write stage needs dsh's config sub-packages
+resolvable, which the sandboxed run showed is not the case here.
+
+---
+
 ## 0.7.0 — `--env`: make a side-effecting feature testable, not just forbidden
 
 Contributed while 0.6.0 was being written, and it completes it.
