@@ -148,7 +148,12 @@ If yes, record it **in the same session**:
 | A test script that works for **any** Electron app | `harness/scenarios/` |
 | A change to the harness code | `harness/`, then run `ebb selfcheck` |
 
-Then bump `process/VERSION` and add a `process/CHANGELOG.md` entry. Verify with:
+**Bump `process/VERSION` and add a `process/CHANGELOG.md` entry only when the framework
+itself changed** — a harness code change, a generic `harness/scenarios/` script, or a
+`process/knowledge/` update. A run whose only learning is true of **one application**
+updates `projects/<owner>__<repo>/NOTES.md` (plus its `scenarios/` and `fixtures/`) and
+stops there — no VERSION bump, no CHANGELOG entry, no `process/knowledge/` change. Verify
+with:
 
 ```bash
 node harness/bin/ebb.mjs selfcheck
@@ -157,8 +162,10 @@ node harness/bin/ebb.mjs selfcheck
 Rules for evolving safely:
 - **Never weaken a probe to make a run pass.** Fix the probe or record the limitation.
 - **Keep project-specific material out of the framework.** Anything that names one
-  app's routes, selectors or dialogs belongs under `projects/<owner>__<repo>/`, never
-  in `process/knowledge/` or `harness/scenarios/`. The framework must stay usable for
+  app's routes, selectors, dialogs, channels or reply strings belongs under
+  `projects/<owner>__<repo>/`, never in `process/knowledge/`, `harness/scenarios/`, or
+  the `process/CHANGELOG.md` / `process/VERSION` evolution record. A commit hash, a PR
+  number or an app name in the CHANGELOG is a leak. The framework must stay usable for
   the next repository. `ebb selfcheck` enforces the script half of this rule.
 - **Do not add dependencies beyond `playwright-core`.** The harness must still *work*
   when `node_modules` is absent: everything except the Playwright driver keeps

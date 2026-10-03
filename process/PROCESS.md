@@ -264,20 +264,29 @@ Ask: *what did I learn that the next run should not have to learn again?*
 |---|---|
 | Environment quirk (proxy, TLS, cache, a required flag) | `process/knowledge/environment.md` |
 | A build/launch failure and its fix | `process/knowledge/failure-modes.md` |
-| A new observation technique or assertion | `process/knowledge/electron-blackbox.md` |
-| A repository that needed a custom adapter/scenario | `process/knowledge/repo-notes.md` |
+| A new observation technique or assertion (works for **any** app) | `process/knowledge/electron-blackbox.md` |
+| Something true of **one application** (routes, selectors, channels, reply strings, pre-existing noise) | `projects/<owner>__<repo>/NOTES.md` |
+| A test script for **one application** | `projects/<owner>__<repo>/scenarios/` |
 | A harness code change | `harness/` + `ebb selfcheck` |
 | A config-only change (mirror, proxy, extra flag) | `harness/ebb.config.json` |
 
-Then:
+The rows that point at `process/knowledge/`, `harness/` or `harness/scenarios/` are
+**framework changes**; the `projects/…` rows are **project records**. Project records
+must never bleed into the framework. Only a framework change gets the version bump:
 
-1. Bump `process/VERSION` (patch = docs/knowledge, minor = harness behaviour,
-   major = pipeline shape).
-2. Add a `process/CHANGELOG.md` entry saying what changed and *why*.
+1. Bump `process/VERSION` and add a `process/CHANGELOG.md` entry **only if you changed
+   `harness/`, `harness/scenarios/` or `process/knowledge/`** (patch = docs/knowledge,
+   minor = harness behaviour, major = pipeline shape).
+2. If the only learning is true of one application, update
+   `projects/<owner>__<repo>/NOTES.md` (and its `scenarios/` / `fixtures/`) and stop —
+   no VERSION bump, no CHANGELOG entry, no `process/knowledge/` change.
 3. Run `node harness/bin/ebb.mjs selfcheck` — it must be fully green.
 4. If you changed harness behaviour, re-run the most recent case to confirm you did
    not regress the process itself.
 
 **Anti-patterns.** Weakening a probe so a run passes. Hard-coding a repository's
 paths into harness logic instead of adding an adapter or a scenario. Adding an npm
-dependency. Recording a "fix" in the changelog without verifying it.
+dependency. Recording a "fix" in the changelog without verifying it. Recording a
+project's test results — a commit hash, a channel name, a reply string — in
+`process/knowledge/`, `process/CHANGELOG.md` or `process/VERSION` instead of the
+project's `NOTES.md`.

@@ -6,6 +6,19 @@ Versioning: **patch** = knowledge/docs, **minor** = harness behaviour,
 
 ---
 
+## 0.8.1 — surface build compile errors behind an INCONCLUSIVE verdict
+
+A run can fail to launch because the repository under test does not *compile*, not
+because the host cannot run Electron. When `forge-package` fails with `webpack
+compiled with N errors` and the `script-start` fallback also exits 1, the report's
+verdict is `INCONCLUSIVE` with "no probes produced results", which reads like an
+environment problem. Documented the tell and the remedy in
+`process/knowledge/failure-modes.md`: an `INCONCLUSIVE` verdict with all-immediate
+`exit_1` launch attempts is usually a compile error, and the webpack/TS errors live in
+`runs/<id>/logs/<side>-package.log` (`ERROR in` / `TS####`), not in the report.
+
+---
+
 ## 0.8.0 — test a repository already on disk
 
 Until now the harness could only clone a remote URL. A repository that already sits on
