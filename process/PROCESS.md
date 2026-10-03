@@ -256,37 +256,29 @@ rendering, not a summary:
 
 ## Step 7 — Evolve the process
 
-This step is the reason the process improves rather than repeating itself.
+Do this only if the change clears the bar in `AGENTS.md` §5: it is architectural, the
+human asked for it, or it cannot be inferred from the run itself. Otherwise Step 7 is a
+no-op — a run whose only outcome is a test result changes no framework file.
 
-Ask: *what did I learn that the next run should not have to learn again?*
+The framework is an operating procedure, not a catalogue of everything that can go
+wrong. "We saw this symptom once" is not by itself a reason to record anything.
 
-| Learning | Destination |
-|---|---|
-| Environment quirk (proxy, TLS, cache, a required flag) | `process/knowledge/environment.md` |
-| A build/launch failure and its fix | `process/knowledge/failure-modes.md` |
-| A new observation technique or assertion (works for **any** app) | `process/knowledge/electron-blackbox.md` |
-| Something true of **one application** (routes, selectors, channels, reply strings, pre-existing noise) | `projects/<owner>__<repo>/NOTES.md` |
-| A test script for **one application** | `projects/<owner>__<repo>/scenarios/` |
-| A harness code change | `harness/` + `ebb selfcheck` |
-| A config-only change (mirror, proxy, extra flag) | `harness/ebb.config.json` |
+`AGENTS.md` §5 carries the routing table (which kind of change belongs where) and the
+versioning rule. In short: a **framework change** — harness code, a generic
+`harness/scenarios/` script, or a `process/knowledge/` update — bumps `process/VERSION`
+and gets a `process/CHANGELOG.md` entry (patch = docs/knowledge, minor = harness
+behaviour, major = pipeline shape); a **project record** stops at
+`projects/<owner>__<repo>/NOTES.md` (plus its `scenarios/` and `fixtures/`).
 
-The rows that point at `process/knowledge/`, `harness/` or `harness/scenarios/` are
-**framework changes**; the `projects/…` rows are **project records**. Project records
-must never bleed into the framework. Only a framework change gets the version bump:
+Then:
 
-1. Bump `process/VERSION` and add a `process/CHANGELOG.md` entry **only if you changed
-   `harness/`, `harness/scenarios/` or `process/knowledge/`** (patch = docs/knowledge,
-   minor = harness behaviour, major = pipeline shape).
-2. If the only learning is true of one application, update
-   `projects/<owner>__<repo>/NOTES.md` (and its `scenarios/` / `fixtures/`) and stop —
-   no VERSION bump, no CHANGELOG entry, no `process/knowledge/` change.
-3. Run `node harness/bin/ebb.mjs selfcheck` — it must be fully green.
-4. If you changed harness behaviour, re-run the most recent case to confirm you did
+1. Run `node harness/bin/ebb.mjs selfcheck` — it must be fully green.
+2. If you changed harness behaviour, re-run the most recent case to confirm you did
    not regress the process itself.
 
-**Anti-patterns.** Weakening a probe so a run passes. Hard-coding a repository's
-paths into harness logic instead of adding an adapter or a scenario. Adding an npm
-dependency. Recording a "fix" in the changelog without verifying it. Recording a
-project's test results — a commit hash, a channel name, a reply string — in
-`process/knowledge/`, `process/CHANGELOG.md` or `process/VERSION` instead of the
-project's `NOTES.md`.
+**Anti-patterns.** Weakening a probe so a run passes. Hard-coding a repository's paths
+into harness logic instead of adding an adapter or a scenario. Adding an npm dependency.
+Recording a "fix" without verifying it. Recording a project's test results — a commit
+hash, a channel name, a reply string — in `process/knowledge/`, `process/CHANGELOG.md` or
+`process/VERSION` instead of the project's `NOTES.md`. Recording anything merely because
+a run produced it.

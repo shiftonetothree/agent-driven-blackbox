@@ -283,23 +283,29 @@ const TESTS = [
     return `${generic.length} generic (${generic.join(', ') || 'none'}); ${repos.length} project(s), ${projectFiles.length} project script(s)`;
   }),
 
-  test('framework docs stay generic: no project slugs or commit hashes', async () => {
+  test('framework docs stay generic: no project slugs, PR numbers or commit hashes', async () => {
     const { readdir } = await import('node:fs/promises');
     const knowledgeDir = join(ROOT, 'process', 'knowledge');
     const docs = [
       join(ROOT, 'process', 'CHANGELOG.md'),
       join(ROOT, 'process', 'PROCESS.md'),
       join(ROOT, 'AGENTS.md'),
+      join(ROOT, 'CLAUDE.md'),
+      join(ROOT, 'README.md'),
+      join(ROOT, '.agents', 'skills', 'electron-blackbox', 'SKILL.md'),
       ...(await readdir(knowledgeDir).catch(() => []))
         .filter((f) => f.endsWith('.md'))
         .map((f) => join(knowledgeDir, f)),
     ];
-    // A specific project is identified by its `projects/<owner>__<repo>` directory, and a
-    // specific run by a bare commit hash. Framework docs describe the framework; those two
-    // belong in `projects/<owner>__<repo>/NOTES.md` instead. Placeholders like
-    // `projects/<owner>__<repo>` use angle brackets and deliberately do not match.
+    // A specific project is identified by its `projects/<owner>__<repo>` directory, a
+    // specific run by a bare commit hash, and a specific change by a `#<number>` pull
+    // request reference. Framework docs describe the framework; all three belong in
+    // `projects/<owner>__<repo>/NOTES.md` instead. Placeholders like
+    // `projects/<owner>__<repo>` use angle brackets and deliberately do not match, and a
+    // command-line example such as `--pr 85` carries no `#`.
     const projectSlug = /projects\/[A-Za-z0-9._-]+__[A-Za-z0-9._-]+/;
     const commitHash = /\b[0-9a-f]{7,40}\b/;
+    const pullRequest = /(^|[^\w#])#\d{1,5}\b/;
     for (const file of docs) {
       const text = await readFile(file, 'utf8');
       const rel = relative(ROOT, file);
@@ -310,6 +316,10 @@ const TESTS = [
       const hash = text.match(commitHash);
       if (hash) {
         throw new Error(`${rel} records a commit hash (${hash[0]}); per-repository test records belong in projects/<owner>__<repo>/NOTES.md`);
+      }
+      const pr = text.match(pullRequest);
+      if (pr) {
+        throw new Error(`${rel} cites a pull request (${pr[0].trim()}); per-repository test records belong in projects/<owner>__<repo>/NOTES.md`);
       }
     }
     return `${docs.length} framework doc(s) checked for project leakage`;

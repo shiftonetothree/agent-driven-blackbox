@@ -42,7 +42,9 @@ Your job from that moment is fixed and non-negotiable in order:
    Then **translate it into Chinese**: write `runs/<runId>/report.zh-CN.md`, a full
    Chinese rendering of the same report, and deliver both files.
 
-7. **Record what you learned** (§5) so the next run is better than this one.
+7. **Record only what qualifies** (§5) — a change to the architecture, something the
+   human asked to be remembered, or knowledge that cannot be inferred from the run.
+   Most runs qualify for nothing, and that is the normal outcome.
 
 ---
 
@@ -130,34 +132,43 @@ launch evidence is the result and you must say so plainly.
 
 ---
 
-## 5. Evolving this process (this is expected, not optional)
+## 5. Evolving this process
 
-The process is designed to be improved by the agent that uses it. After every run,
-ask yourself: *did I learn something that would make the next run better?*
+The process is meant to be improved by the agent using it — but it is an **operating
+procedure, not a catalogue of everything that can go wrong.** It records how to run the
+process, plus the few facts that cannot be worked out from a run itself. Every line is
+read on every future run, so anything else is a cost with no return.
 
-If yes, record it **in the same session**:
+Add to the framework only when one of these holds:
 
-| What you learned | Where it goes |
+1. the architecture needs adjusting;
+2. the human explicitly asks for something to be recorded;
+3. it is knowledge that cannot reasonably be inferred from the run output, the logs or
+   the source — and the next run would otherwise pay the same cost to rediscover it.
+
+If none of the three holds, record nothing. A run whose only outcome is a test result
+changes no framework file and does not bump `process/VERSION`.
+
+When a change does qualify, it goes where its kind belongs:
+
+| The change | Where it goes |
 |---|---|
-| A new environment quirk (proxy, TLS, cache, flags) | `process/knowledge/environment.md` |
-| A new way a repo fails to build/launch, and the fix | `process/knowledge/failure-modes.md` |
-| A new Electron black-box technique or assertion | `process/knowledge/electron-blackbox.md` |
-| How to write a better test script | `process/knowledge/scenario-authoring.md` |
-| Something true of **one application** (routes, selectors, pre-existing noise) | `projects/<owner>__<repo>/NOTES.md` |
-| A test script for **one application** | `projects/<owner>__<repo>/scenarios/` |
-| A test script that works for **any** Electron app | `harness/scenarios/` |
-| A change to the harness code | `harness/`, then run `ebb selfcheck` |
+| The pipeline's shape, the harness code, the CLI | `harness/`, then `ebb selfcheck` |
+| A host fact that cannot be inferred — a mandatory flag, a proxy, a filesystem boundary | `process/knowledge/environment.md` |
+| An Electron behaviour that cannot be inferred and changes what is observable | `process/knowledge/electron-blackbox.md` |
+| A way to write a better test script | `process/knowledge/scenario-authoring.md` |
+| A build/launch failure whose cause is *not* the repository under test | `process/knowledge/failure-modes.md` |
+| A script that works for **any** Electron app | `harness/scenarios/` |
+| Anything true of **one** application — routes, selectors, channels, preconditions, pre-existing noise | `projects/<owner>__<repo>/NOTES.md` |
+| A test script for **one** application | `projects/<owner>__<repo>/scenarios/` |
 
-**Bump `process/VERSION` and add a `process/CHANGELOG.md` entry only when the framework
-itself changed** — a harness code change, a generic `harness/scenarios/` script, or a
-`process/knowledge/` update. A run whose only learning is true of **one application**
-updates `projects/<owner>__<repo>/NOTES.md` (plus its `scenarios/` and `fixtures/`) and
-stops there — no VERSION bump, no CHANGELOG entry, no `process/knowledge/` change. Verify
-with:
-
-```bash
-node harness/bin/ebb.mjs selfcheck
-```
+**Bump `process/VERSION` and add a `process/CHANGELOG.md` entry only for a framework
+change** — harness code, a generic `harness/scenarios/` script, or a
+`process/knowledge/` change. A project record stops at `projects/<owner>__<repo>/`: no
+VERSION bump, no CHANGELOG entry, no `process/knowledge/` change. A change that is
+readily inferable, or that merely describes a revision's current state, is not worth
+recording anywhere in the framework — prefer the specific over the general, and the
+non-inferable over the merely observed.
 
 Rules for evolving safely:
 - **Never weaken a probe to make a run pass.** Fix the probe or record the limitation.
@@ -166,7 +177,7 @@ Rules for evolving safely:
   `projects/<owner>__<repo>/`, never in `process/knowledge/`, `harness/scenarios/`, or
   the `process/CHANGELOG.md` / `process/VERSION` evolution record. A commit hash, a PR
   number or an app name in the CHANGELOG is a leak. The framework must stay usable for
-  the next repository. `ebb selfcheck` enforces the script half of this rule.
+  the next repository. `ebb selfcheck` enforces this.
 - **Do not add dependencies beyond `playwright-core`.** The harness must still *work*
   when `node_modules` is absent: everything except the Playwright driver keeps
   running, and `ebb doctor` / `ebb acquire` / `ebb selfcheck` report that the driver
@@ -174,11 +185,14 @@ Rules for evolving safely:
 - **Keep both drivers in step.** `ebb selfcheck` asserts that the Playwright driver
   and the DevTools Protocol fallback expose the same page methods; a probe must never
   silently depend on Playwright-only behaviour.
-- **Prefer configuration over code.** Most new environments are a proxy, a mirror or
-  a launch flag away from working — put that in `harness/ebb.config.json` or the
-  knowledge files before touching harness logic.
 - **Re-run the previous case after a harness change** to confirm you did not regress
   the process itself.
+
+Verify with:
+
+```bash
+node harness/bin/ebb.mjs selfcheck
+```
 
 ---
 
@@ -188,9 +202,8 @@ Rules for evolving safely:
   never edits application source.
 - The **only** permitted modification to the repository under test is a *declared
   build adaptation* (`harness/src/adapt.mjs`), applied inside the run's disposable
-  worktree to make the app observable at all. Today that means re-enabling Electron
-  Forge's `EnableNodeCliInspectArguments` fuse, which otherwise removes the Node
-  inspector that Playwright attaches to. The cached clone and the user's repository
+  worktree to make the app observable at all — re-enabling the Node inspector that
+  Playwright attaches to, which a packaging fuse otherwise removes. The cached clone and the user's repository
   are never touched, the change is written to `adaptations-<side>.diff`, and every
   report that used one says so in a dedicated section. Pass `--no-adapt` to test the
   repository's shipped packaging configuration instead — and expect Playwright to be

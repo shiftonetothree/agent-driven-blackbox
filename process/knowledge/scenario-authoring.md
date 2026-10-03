@@ -53,12 +53,11 @@ application menu.
 
 Two things this reliably catches that a hand-written script does not:
 
-- **A blocking first-run modal.** In the reference project the app opened a "共建计划"
-  dialog over everything; the generic probes reported a healthy 391-character page
-  that was entirely modal text.
-- **The real API surface.** `ebb explore` on that app listed
-  `deepseek-harness-servicesync-workbuddy-models`, which is exactly what the PR under
-  test added — and which a guessed selector would never have found.
+- **A blocking first-run modal.** A fresh profile often opens a welcome or onboarding
+  dialog over everything, and the generic probes then report a healthy page that is
+  entirely modal text. Every scenario has to dismiss it before it can measure anything.
+- **The real API surface.** `explore` lists the IPC channels the app actually registers
+  — including the one the change just added, which a guessed name would never have hit.
 
 ## Step 2 — pick the load-bearing assertion
 
@@ -86,14 +85,15 @@ exists and compare downstream behaviour.
 
 Split them:
 
-- `pr85-targeted.json` — asserts the feature's existence. Base fails, head passes →
-  the differential classifies it `FIXED`. This is the feature test.
-- `pr85-native-service-health.json` — asserts nothing about the feature, so it
-  completes on both revisions and can be compared. This is the health test.
+- **The feature test** asserts that the new API exists, and nothing else. It fails on
+  base by design, so the differential classifies it `FIXED` — which is itself a result:
+  it proves the change delivers what it claims.
+- **The health test** asserts nothing about the feature, so it completes on both
+  revisions and can be compared. Anything the feature disturbed shows up here.
 
-In the reference project that split is what proved a pair of xterm.js console errors
-were **pre-existing on both revisions** rather than introduced by the PR. A
-single-sided run would have reported them against the PR.
+The split is what separates a regression from pre-existing noise. A single-sided run
+attributes every console error on the changed page to the change; only a both-sides
+health test can show the errors were already there.
 
 ## Step 4 — iterate with `play`
 
@@ -128,9 +128,9 @@ nothing and you are not testing the feature.
 `--env KEY=VALUE` (repeatable) sets environment variables on the launched application:
 
 ```bash
-node harness/bin/ebb.mjs run --repo <url> --pr 85 \
-  --env USERPROFILE=projects/<slug>/fixtures/pr85-home \
-  --env DSH_HOME=projects/<slug>/fixtures/pr85-dsh
+node harness/bin/ebb.mjs run --repo <url> --pr <n> \
+  --env USERPROFILE=projects/<slug>/fixtures/<fixture-name> \
+  --env <APP_SPECIFIC_DIR>=projects/<slug>/fixtures/<fixture-name>
 ```
 
 The app now reads and writes inside the fixture tree, so the real read / backup / write

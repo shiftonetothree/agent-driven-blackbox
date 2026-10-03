@@ -7,113 +7,50 @@ whenToUse: The user gives a repository URL or a path to a local checkout of an E
 # Electron black-box test operator
 
 This directory **is** the test process. Nothing here depends on a particular agent
-framework: the whole process is three shell commands, and this file is only guidance
-for whichever agent is driving them.
+framework: the whole process is a handful of shell commands.
 
-All paths below are relative to this directory (the one containing `AGENTS.md`).
+**`AGENTS.md` is the contract — read it first.** It carries the procedure and its order,
+the commands, the verdict semantics, and the rules for evolving the process. This file
+adds only what is specific to arriving here through skill discovery, so it deliberately
+does not restate any of that.
 
-## Do this, in this order
+All paths are relative to this directory (the one containing `AGENTS.md`).
 
-1. **Ask what to test — never guess.** Use whatever question tool the framework
-   provides, or just ask in the reply:
+## The four things an operator gets wrong
 
-   ```
-   要测试哪个改动？请二选一：
-     1) Pull Request 编号，例如 85
-     2) 一段 git commit 范围，例如 v1.2.0..v1.3.0 或 abc123..def456
-
-   Which change should I test? Pick one:
-     1) A pull request number, e.g. 85
-     2) A git commit range, e.g. v1.2.0..v1.3.0 or abc123..def456
-   ```
-
-   Then, once, ask whether to compare against the base revision (finds regressions)
-   or test only the head revision (about twice as fast). Nothing else needs asking.
-
-2. **Capability check, before any blame.**
-   `node harness/bin/ebb.mjs doctor --smoke`
-   A `FAIL` here means the *host* cannot test Electron. Stop and report that — never
-   turn an environment failure into a finding about the repository.
-
-3. **Resolve the change cheaply, then show it.**
-   `node harness/bin/ebb.mjs acquire --repo <url> --pr <n>`
-   (or `--range <A..B>`, or `--repo-dir <path>` for a checkout already on disk).
-   Confirm the base branch and diff size before spending minutes on builds.
-
-4. **Write a test script for this change — do not skip this.**
-   The built-in probes only prove the app still starts and renders. Testing what the
-   change *does* requires a script aimed at it:
-
-   ```bash
-   node harness/bin/ebb.mjs scenario <runId>              # scaffold aimed at the diff
-   node harness/bin/ebb.mjs explore  <runId> --side head  # map real selectors + IPC channels
-   #   ...edit projects/<owner>__<repo>/scenarios/<file>.json...
-   node harness/bin/ebb.mjs play <runId> --scenario <file>            # iterate in seconds
-   node harness/bin/ebb.mjs play <runId> --side base --scenario <file>
-   ```
-
-   `explore` first, always — it reports the app's durable selectors, open dialogs,
-   routes and IPC channels, so you never invent a selector. Full method:
-   `process/knowledge/scenario-authoring.md`.
-
-5. **Run it differentially.**
-   `node harness/bin/ebb.mjs run --repo <url> --pr <n> --scenario projects/<owner>__<repo>/scenarios/<file>.json`
-   Use `--repo-dir <path>` instead of `--repo <url>` for a checkout already on disk
-   (`--range A..B` for a differential run; no range tests the working tree single-sided).
-   Without `--scenario` this is a smoke test, and the report will say so.
-
-6. **Report** `runs/<runId>/report.md`, leading with the verdict. `INCONCLUSIVE` is
-   not a pass — say so plainly and attach the launch evidence. If no script was
-   written, say that too; the report carries a coverage caveat. Then write
-   `runs/<runId>/report.zh-CN.md`, a Chinese translation of the same report, and
-   deliver both.
-
-7. **Evolve the process.** Record anything new (environment quirk, failure mode,
-   technique, authoring lesson) under `process/knowledge/`, bump `process/VERSION`,
-   add a `process/CHANGELOG.md` entry, and run `node harness/bin/ebb.mjs selfcheck`
-   until it is green.
+- **A `FAIL` from `doctor --smoke` is about the host, not the app.** The host cannot test
+  Electron. Stop and report that; never turn an environment failure into a finding about
+  the repository under test.
+- **`explore` before writing any selector.** It reports the app's real durable selectors,
+  open dialogs, routes and IPC channels, so nothing has to be invented.
+- **`INCONCLUSIVE` is not a pass.** If a revision never launched, the launch evidence is
+  the result — say so plainly rather than implying coverage.
+- **Every report ships in two languages.** `runs/<runId>/report.md`, then
+  `runs/<runId>/report.zh-CN.md`, a full rendering of the same report — headings, labels
+  and prose translated, identifiers left verbatim.
 
 ## Using this from any agent framework
 
-- **Any tool that can run a shell command can use this process.** No SDK, no MCP
-  server, no framework plugin is required. `node harness/bin/ebb.mjs <command>`.
-- **Non-interactive and machine-readable.** `--json` where it helps; a report is
-  always written to `runs/<runId>/report.json` as well as `report.md`.
+- **Any tool that can run a shell command can use this process.** No SDK, no MCP server,
+  no framework plugin is required. `node harness/bin/ebb.mjs <command>`.
+- **Non-interactive and machine-readable.** `--json` where it helps; a report is always
+  written to `runs/<runId>/report.json` as well as `report.md`.
 - **Gateable.** Exit code `1` means regression or failure.
-- **Instruction files.** `AGENTS.md` is the canonical entry point (read by most
-  coding agents); `CLAUDE.md` points at it for Claude Code; `.agents/skills/` and
-  `AGENTS.md` between them cover tools that discover skills from a directory.
-  If your framework uses something else, point it at `AGENTS.md` — that is the whole
-  contract.
-
-## Rules
-
-- **Write the script.** A verdict from the generated smoke script does not cover the
-  change, and the report says so. Do not present it as a clean result.
-- Never report a run as passing when a revision never launched, or when no probe ran.
-- Never weaken a probe to make a run pass. Fix it or record the limitation.
-- Never invent a selector. Run `explore` against the live app first.
-- **Keep project-specific material out of the framework.** Scripts and notes that name
-  one app's routes, selectors or dialogs belong under `projects/<owner>__<repo>/`, never
-  in `harness/scenarios/` or `process/knowledge/`. `ebb selfcheck` enforces this.
-- Never edit application source. The single permitted change is a *declared build
-  adaptation* (`harness/src/adapt.mjs`) applied inside the run's disposable worktree
-  so the packaged app can be observed at all — recorded in `adaptations-<side>.diff`
-  and stated in every report that uses one. `--no-adapt` disables it.
-- Always state what was **not** tested (skipped probes, dev-server instead of the
-  packaged artifact, one side only, adapted packaging, no change-specific script).
-- The harness depends on `playwright-core` and nothing else, on purpose. Everything
-  except the Playwright driver still works when `node_modules` is absent.
+- **Entry points.** `AGENTS.md` is canonical (the convention most coding agents read);
+  `CLAUDE.md` points at it for Claude Code. For any other framework, point it at
+  `AGENTS.md` — that is the whole contract, and adding a pointer is a one-line file.
 
 ## Read next
 
+- `AGENTS.md` — the contract: procedure, commands, verdicts, how to evolve the process.
 - `process/PROCESS.md` — the detailed playbook and the reasoning behind each step.
-- `process/knowledge/scenario-authoring.md` — how to write the script. Read this
-  before authoring.
-- `process/knowledge/environment.md` — mandatory launch flags, proxy and TLS setup.
-  Read this before debugging any launch failure.
-- `process/knowledge/failure-modes.md` — symptom → diagnosis → remedy.
+- `process/knowledge/scenario-authoring.md` — how to write the test script. Read before
+  authoring.
+- `process/knowledge/environment.md` — mandatory launch flags, proxy and TLS setup. Read
+  before debugging any launch failure.
 - `process/knowledge/electron-blackbox.md` — what is observable from outside Electron,
   and which observations are trustworthy.
+- `process/knowledge/failure-modes.md` — a build or launch failure that is not the
+  repository's fault.
 - `projects/<owner>__<repo>/NOTES.md` — this app's quirks, selectors and pre-existing
-  noise. Read it before writing a script for a repository already tested.
+  noise. Read before scripting against a repository that was tested before.

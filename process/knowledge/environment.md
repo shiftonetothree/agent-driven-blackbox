@@ -106,13 +106,8 @@ converges on the same answer either way.
   holds `chromium-1228`, but that Chromium is itself affected by the crash described
   above — which is a useful independent confirmation that this is an environment
   property, not an Electron bug. Nothing in the harness uses it.
-- **Verified end to end.** `_electron.launch` with the mandatory flags, plus
-  `firstWindow()`, `locator().click()`, `screenshot()` and
-  `electronApp.evaluate(({ app, BrowserWindow }) => …)`. The main-process evaluate is
-  handed the electron module directly, so no `require('electron')` shim is needed.
-- **Engine reporting.** `app.evaluate(() => process.versions)` is how the report gets
-  `Electron/36.5.0 Chrome/136.0.7103.168`; the CDP driver reads the same numbers from
-  `http://127.0.0.1:<port>/json/version`.
+- **The main-process evaluate is handed the `electron` module directly**, so reading app
+  state needs no `require('electron')` shim.
 
 ---
 
@@ -205,20 +200,19 @@ that piped stdio needs. Consequences and workarounds:
 
 | Fact | Value |
 |---|---|
-| OS | Windows 10 Pro, build 26200 |
+| OS | Windows 11, build 26200 |
 | Session | RDP (`SESSIONNAME=RDP-Tcp#0`), **no `explorer.exe`** running |
 | CPU | Intel Xeon E5-2686 v4 (Broadwell), 16 logical cores |
 | RAM | ~52 GB total |
 | GPU | NVIDIA RTX 3080 + Red Hat VirtIO GPU |
-| Node | v24.21.0 (global `WebSocket` and `fetch` available) |
-| npm / pnpm | 11.19.0 / 12.6.0 |
-| git | 2.53.0.windows.1 |
 | Python | not installed |
 
-The absence of an interactive desktop shell does **not** prevent Electron from
-rendering: screenshots captured over CDP during `ebb doctor --smoke` are real
-(8865 bytes for the 1024×768 smoke window, with DOM text read back as
-`ebb smoke ok`).
+Toolchain versions (Node, npm, git) drift; `ebb doctor` reports the live ones, so they
+are not recorded here.
+
+The absence of an interactive desktop shell does **not** prevent Electron from rendering:
+screenshots captured over CDP during `ebb doctor --smoke` are real, with DOM text read
+back correctly.
 
 ---
 

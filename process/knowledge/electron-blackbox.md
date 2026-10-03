@@ -56,8 +56,8 @@ Ordered by how often it has actually caught something.
 ## Traps
 
 **The default user-data directory is shared state.** Every run gets its own
-`--user-data-dir`. Without this, run #2 inherits run #1's profile and the two
-revisions are not comparable — quite apart from crashing outright on this host.
+`--user-data-dir`. Without this, the second run inherits the first run's profile and the
+two revisions are not comparable — quite apart from crashing outright on this host.
 
 **Dev-server builds are not what ships.** `electron-forge start` / `vite dev` serve
 the renderer over HTTP with hot reload. The packaged app loads from `file://`. Some
@@ -140,47 +140,15 @@ Diagnose it by checking whether the inspector endpoint is reachable when you pas
 Electron's `--inspect` is a no-op in a packaged build when that fuse is off, so
 "pass `--inspect` and hope" is not a workaround.
 
-**`page.evaluate` with a string needs care.** Playwright evaluates a *function*;
-passing a bare expression like `document.title` (rather than `() => document.title`)
-works only because the harness wraps it. When writing ad-hoc probes, pass a function.
-
-**Auto-waiting can mask a missing element.** `locator.click()` waits for
-actionability, which is usually what you want, but it also means a click can succeed
-"late" rather than revealing that the UI was briefly broken. Where the *timing* is
-the thing under test, assert on the DOM state directly instead.
-
 ---
 
 ## Scenario authoring
 
-Scenarios are the extension point for repo-specific coverage. Generate a starter,
-then edit it:
-
-```bash
-node harness/bin/ebb.mjs scenario <runId> --out harness/scenarios/<name>.json
-```
-
-Available actions:
-
-| Action | Fields | Notes |
-|---|---|---|
-| `wait` | `ms` | Settle time |
-| `waitForSelector` | `selector`, `timeout` | Fails the step on timeout |
-| `click` | `selector` | Scrolls into view first |
-| `type` | `selector`, `text` | Fires `input` **and** `change`, so React/Vue state updates |
-| `press` | `selector`, `key` | Keyboard events on the focused element |
-| `eval` | `expression` | Arbitrary page expression; its value is recorded |
-| `assertText` | `selector`, `contains` \| `matches` | Text assertion |
-| `assertSelector` | `selector` | Presence assertion |
-| `assertNoConsoleErrors` | — | Fails if any console error was seen |
-| `screenshot` | `name` | Writes into the run's artifacts |
-
-Steps accept `severity` (`blocker`/`major`/`minor`) and `optional: true`. A failing
-non-optional step stops the scenario; the failure is the finding.
-
-Guidance: prefer role/text-independent selectors that a UI change will not silently
-invalidate, keep scenarios short, and put one intent per step so a failure names the
-intent.
+Scenarios are the extension point for repo-specific coverage, and the only way to test
+what a change actually *does*. The method — the authoring loop, the action reference, the
+one-script-per-question rule and the common mistakes — lives in `scenario-authoring.md`.
+Nothing about it is Electron-specific, except that `explore` also reports the app's
+registered IPC channels and application menu, which is often exactly where the change is.
 
 ---
 
