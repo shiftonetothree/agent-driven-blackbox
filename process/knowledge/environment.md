@@ -216,27 +216,45 @@ back correctly.
 
 ---
 
+## 4b. A reused build is not a clean install
+
+`ebb run` reuses a packaged build when the revision, adapter and adaptations all match
+(`work/build-index.json`), and it launches the exe **from the earlier run's tree** rather
+than copying it — the package is hundreds of MB, so that saving is real. What it also
+means is that any state the previous run's app wrote *inside its own installation
+directory* is still there.
+
+`--user-data-dir` isolates `userData` and nothing else. An app that keeps configuration
+next to its executable (rather than in `userData`) therefore boots a later run with the
+previous run's settings — including settings the previous run's *test* wrote, such as a
+feature the scenario switched off.
+
+This has produced a false negative: a scenario asserting a shipped default failed on the
+next run because the run before it had disabled that feature. The failure looks like a
+product defect and is not one.
+
+- Before asserting a **shipped default**, restore the affected file(s) in the tree the
+  run is about to reuse. The run log names it: `reusing the packaged build from a
+  previous run: <path>`. The repository's own copy of the file is the reference state.
+- `ebb play` shares the same tree, so plays accumulate state for the same reason.
+- When in doubt, make the run build fresh instead of reasoning about what the old tree
+  contains.
+
+---
+
 ## 5. Finding an Electron binary for `doctor --smoke`
 
-`ebb doctor --smoke` reports `electron-launch: no Electron binary found` unless it can
-locate one on its own. `findAnyElectron()` only searches
-`work/repos/<owner>/<repo>/node_modules/electron/dist/electron.exe`, but the cached clone
-never has `node_modules` — installs happen inside each run's disposable worktree — so on
-this host the auto-search returns `null` and the smoke check needs a binary passed in.
+`ebb doctor --smoke` finds a binary by itself and only reports
+`electron-launch: no Electron binary found` when not one exists in the workspace. It
+searches the cached clone (`work/repos/…`) and every completed run's worktree
+(`runs/<runId>/trees/{base,head}/…`), newest run first.
 
-Binaries live under every completed run's worktree:
+`.cache/electron/` holds only the downloaded `.zip` (v36.5.0 and v44.4.3), not an
+extracted `electron.exe`, so it cannot be used directly.
 
-```
-runs/<runId>/trees/{base,head}/node_modules/electron/dist/electron.exe
-```
-
-and in the pre-harness probe checkout
-`_probe/target/launcher/node_modules/electron/dist/electron.exe`. Pass any of them
-explicitly:
+Pass one explicitly only when the specific binary matters — testing an unusual Electron
+version, or the workspace holds nothing usable:
 
 ```bash
-node harness/bin/ebb.mjs doctor --smoke --electron "F:/agnet_black_box_test/runs/<runId>/trees/head/node_modules/electron/dist/electron.exe"
+node harness/bin/ebb.mjs doctor --smoke --electron "<path-to-electron>"
 ```
-
-The `.cache/electron/` entries are only the downloaded `.zip` (v36.5.0 and v44.4.3),
-not an extracted `electron.exe`, so they cannot be used directly.

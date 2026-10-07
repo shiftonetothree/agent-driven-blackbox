@@ -6,6 +6,69 @@ Versioning: **patch** = knowledge/docs, **minor** = harness behaviour,
 
 ---
 
+## 0.11.1 — a reused build is not a clean install
+
+A scenario asserting a shipped default failed on one run and passed on the next, with the
+product unchanged. The cause was the build cache: a cached packaged build is launched from
+the *earlier run's* tree, so anything the previous run's app wrote inside its own
+installation directory is still in place. `--user-data-dir` isolates `userData` and
+nothing else, so an app that keeps configuration next to its executable starts a later run
+with the settings the earlier run's test left behind — including a feature that test
+switched off. That reads as a product defect and is not one.
+
+`process/knowledge/environment.md` §4b records the mechanism and the remedy (restore the
+affected file from the repository before asserting a shipped default, or make the run
+build fresh).
+
+---
+
+## 0.11.0 — a concurrent build can no longer kill the run with a torn JSON read
+
+The pipeline deliberately builds both revisions at once, and both share the workspace's
+`work/build-index.json`. `writeJson` wrote in place, so one side reading the index while
+the other was rewriting it could parse a half-written buffer and abort the whole run with
+`Unexpected end of JSON input` — an opaque failure at the very start of the windowless
+phase, which looks like nothing to do with the process and costs a full retry. A real
+two-sided run died exactly this way; the index is sufficiently large that the window is
+not merely theoretical.
+
+- `writeJson` writes to a temporary file and renames it into place, so a reader observes
+  either the previous file or the new one, never a partial one. The temporary file is
+  removed rather than left behind if it cannot be placed.
+- Reading and writing are **serialised per path**, and that is not belt-and-braces: on
+  Windows a replace whose target another handle holds open fails with EPERM instead of
+  waiting, so moving the write to a temporary file fixes the torn read and introduces a
+  hard failure of its own. Both are needed; neither is sufficient.
+- Measured, not assumed. Against a concurrent reader and writer, the previous in-place
+  write tore 28–34 of 400 reads per run; the fix tore 0 of 1200 across three rounds, with
+  no EPERM and no leftover temporary files. The first attempt at this fix — rename
+  without serialisation — still failed with EPERM and was caught before it shipped.
+- This covers every JSON file the harness shares across concurrent phases — the build
+  index and `work/capabilities.json` among them — not just the one that failed.
+
+---
+
+## 0.10.0 — the doctor can find an Electron binary again
+
+Step 1 of the process is `ebb doctor --smoke`, and on a working host it was reporting a
+blocking `electron-launch` FAIL. `findAnyElectron()` walked
+`work/repos/<owner>/<repo>/node_modules/electron/dist/…`, but `cloneRepo` stores every
+checkout flat as `work/repos/<owner>__<name>` — two path segments where the search
+assumed one, so the two could never meet. The search also ignored `runs/<runId>/trees/`,
+which is where installs normally land, since a run installs in its disposable worktree
+rather than in the cached clone. Any host without a hand-installed checkout in
+`work/repos` therefore failed the capability check for a reason that was not the host,
+not the repository and not the change — and the remedy printed at the time (`pass
+--electron <path>`) papered over a defect in the harness rather than in the environment.
+
+- Probes the flat clone layout, a nested `owner/name` layout, and each run's
+  `trees/{base,head}` worktree, newest run first. A host with any completed build now
+  needs no argument.
+- `process/knowledge/environment.md` §5 no longer documents the workaround as the
+  expected behaviour.
+
+---
+
 ## 0.9.0 — one bar for recording, one procedure, and a guard that matches
 
 The framework had drifted into a catalogue of itself. Its instructions said to "record

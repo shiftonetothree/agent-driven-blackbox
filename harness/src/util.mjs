@@ -9,7 +9,7 @@
  */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, rm, stat, writeFile, copyFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile, copyFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -76,16 +76,77 @@ export async function ensureDir(path) {
 
 export async function readJson(path, fallback = undefined) {
   try {
-    return JSON.parse(await readFile(path, 'utf8'));
+    return JSON.parse(await withPathLock(path, () => readFile(path, 'utf8')));
   } catch (error) {
     if (fallback !== undefined && error.code === 'ENOENT') return fallback;
     throw error;
   }
 }
 
+/** In-flight filesystem access, keyed by path. */
+const pathChains = new Map();
+
+/**
+ * Run `task` after any filesystem access already queued for the same path.
+ *
+ * Reads and writes share this, because on Windows they are not independent: a
+ * handle held open for a read makes the replace of that file fail with EPERM
+ * instead of waiting. Serialising the two per path is what makes the atomic
+ * write below hold, rather than only making it usually hold.
+ *
+ * A task must not re-enter this for its own path — both callers below do one
+ * filesystem call each and no more.
+ */
+function withPathLock(path, task) {
+  const previous = pathChains.get(path) ?? Promise.resolve();
+  const current = previous.then(task, task);
+  const settled = current.catch(() => {});
+  pathChains.set(path, settled);
+  // Drop the entry once this is the last access queued, so the map cannot grow.
+  settled.then(() => {
+    if (pathChains.get(path) === settled) pathChains.delete(path);
+  });
+  return current;
+}
+
+/**
+ * Write JSON without ever exposing a partially written file to a reader.
+ *
+ * The pipeline builds both revisions in one process (`Promise.all`), and both
+ * record their build in the same index, so a reader could otherwise catch that
+ * file mid-write and fail with "Unexpected end of JSON input" — `JSON.parse` on
+ * a truncated buffer, which loses the whole run.
+ *
+ * Two things are needed, and neither alone is sufficient:
+ *
+ *  - the content is written to a temporary file and renamed into place, so a
+ *    reader sees either the previous file or the new one, never half of either;
+ *  - the replace is serialised against every other access to that path (see
+ *    `withPathLock`), because on Windows a concurrent replace of a target that
+ *    another handle holds open fails with EPERM rather than queueing — which
+ *    would abort the run exactly as the torn read did.
+ *
+ * A brief retry still covers a destination held open by something outside the
+ * harness, such as an indexer.
+ */
 export async function writeJson(path, value) {
   await ensureDir(dirname(path));
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  const temp = `${path}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+  await writeFile(temp, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  return await withPathLock(path, async () => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await rename(temp, path);
+        return;
+      } catch (error) {
+        if (attempt >= 4) {
+          await rm(temp, { force: true }).catch(() => {});
+          throw error;
+        }
+        await new Promise((done) => setTimeout(done, 25 * (attempt + 1)));
+      }
+    }
+  });
 }
 
 export async function writeText(path, text) {

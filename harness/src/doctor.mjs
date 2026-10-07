@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { launchApp } from './launch.mjs';
 import { recentCrashDumps } from './minidump.mjs';
 import {
-  CACHE_DIR, ELECTRON_EXE, HARNESS_DIR, IS_WINDOWS, WORK_DIR,
+  CACHE_DIR, ELECTRON_EXE, HARNESS_DIR, IS_WINDOWS, RUNS_DIR, WORK_DIR,
   buildEnv, ensureDir, loadConfig, pathExists, readJson, run, shortHash, writeJson,
 } from './util.mjs';
 
@@ -38,30 +38,64 @@ async function probeUrl(url, config, { timeoutMs = 15000, headers = {} } = {}) {
   }
 }
 
-/** Locate any usable Electron binary inside the workspace. */
+/** `node_modules/electron/dist/<exe>` below a checkout, if it exists. */
+function electronUnder(dir) {
+  const candidate = join(dir, 'node_modules', 'electron', 'dist', ELECTRON_EXE);
+  return existsSync(candidate) ? candidate : null;
+}
+
+/**
+ * Locate any usable Electron binary inside the workspace.
+ *
+ * Two places can hold one, and the second is the common one:
+ *
+ *  - a cached clone at `work/repos/<owner>__<name>` (flat - `cloneRepo` composes the
+ *    slug itself), which `npm install` fills only when a run installed in place rather
+ *    than in its worktree; a nested `owner/name` layout is tolerated too;
+ *  - a completed run's worktree, `runs/<runId>/trees/<side>/node_modules/electron/dist`,
+ *    which is where installs normally land.
+ *
+ * Newest run first, so a host with several builds offers the most recent one.
+ */
 export async function findAnyElectron() {
-  const roots = [join(WORK_DIR, 'repos')];
-  for (const root of roots) {
-    let owners;
+  const direct = [];
+  let entries;
+  try {
+    entries = await readdir(join(WORK_DIR, 'repos'), { withFileTypes: true });
+  } catch {
+    entries = [];
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const checkout = join(WORK_DIR, 'repos', entry.name);
+    direct.push(checkout);
+    let nested;
     try {
-      owners = await readdir(root, { withFileTypes: true });
+      nested = await readdir(checkout, { withFileTypes: true });
     } catch {
       continue;
     }
-    for (const owner of owners) {
-      if (!owner.isDirectory()) continue;
-      let repos;
-      try {
-        repos = await readdir(join(root, owner.name), { withFileTypes: true });
-      } catch {
-        continue;
-      }
-      for (const repo of repos) {
-        if (!repo.isDirectory()) continue;
-        const candidate = join(root, owner.name, repo.name, 'node_modules', 'electron', 'dist', ELECTRON_EXE);
-        if (existsSync(candidate)) return candidate;
-      }
+    for (const child of nested) {
+      if (child.isDirectory()) direct.push(join(checkout, child.name));
     }
+  }
+
+  const trees = [];
+  let runs;
+  try {
+    runs = await readdir(RUNS_DIR, { withFileTypes: true });
+  } catch {
+    runs = [];
+  }
+  for (const run of runs.filter((r) => r.isDirectory()).sort((a, b) => b.name.localeCompare(a.name))) {
+    for (const side of ['base', 'head']) {
+      trees.push(join(RUNS_DIR, run.name, 'trees', side));
+    }
+  }
+
+  for (const dir of [...direct, ...trees]) {
+    const found = electronUnder(dir);
+    if (found) return found;
   }
   return null;
 }
